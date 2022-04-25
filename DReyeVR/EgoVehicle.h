@@ -224,7 +224,8 @@ class CARLAUE4_API AEgoVehicle : public ACarlaWheeledVehicle
     class ADReyeVRHUD *FlatHUD;
     void DrawFlatHUD(float DeltaSeconds);
     FVector2D ReticlePos;                // 2D reticle position from eye gaze
-    int ReticleSize = 100;               // diameter of reticle (line thickness is 10% of this)
+    int bInitReticleSize = 100;          // starting diameter of reticle (line thickness is 10% of this)
+	int ReticleSize = 100;               // diameter of reticle after scaling (line thickness is 10% of this)
     bool bDrawFlatHud = true;            // whether to draw the flat hud at all (default true, but false in VR)
     bool bDrawFPSCounter = true;         // draw FPS counter in top left corner
     bool bDrawGaze = false;              // whether or not to draw a line for gaze-ray on HUD

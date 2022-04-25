@@ -64,9 +64,9 @@ static void ReadDReyeVRConfig()
     {
         UE_LOG(LogTemp, Error, TEXT("Unable to open the config file %s"), *ConfigFilePath);
     }
-    // for (auto &e : Params){
-    //     UE_LOG(LogTemp, Warning, TEXT("%s: %s"), *FString(e.first.c_str()), *e.second);
-    // }
+    for (auto &e : Params){
+        UE_LOG(LogTemp, Warning, TEXT("%s: %s"), *FString(e.first.c_str()), *e.second);
+    }
 }
 
 static void EnsureConfigsUpdated()

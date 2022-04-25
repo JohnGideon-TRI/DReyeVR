@@ -87,7 +87,7 @@ void AEgoVehicle::ReadConfigVariables()
     ReadConfigValue("EgoVehicleHUD", "HUDScaleVR", HUDScaleVR);
     ReadConfigValue("EgoVehicleHUD", "DrawFPSCounter", bDrawFPSCounter);
     ReadConfigValue("EgoVehicleHUD", "DrawFlatReticle", bDrawFlatReticle);
-    ReadConfigValue("EgoVehicleHUD", "ReticleSize", ReticleSize);
+    ReadConfigValue("EgoVehicleHUD", "ReticleSize", bInitReticleSize);
     ReadConfigValue("EgoVehicleHUD", "DrawGaze", bDrawGaze);
     ReadConfigValue("EgoVehicleHUD", "DrawSpectatorReticle", bDrawSpectatorReticle);
     ReadConfigValue("EgoVehicleHUD", "EnableSpectatorScreen", bEnableSpectatorScreen);
@@ -111,19 +111,13 @@ void AEgoVehicle::BeginPlay()
     // Get information about the world
     World = GetWorld();
     Player = UGameplayStatics::GetPlayerController(World, 0); // main player (0) controller
-    Episode = UCarlaStatics::GetCurrentEpisode(World);
-
-    // Get information about the VR headset & initialize SteamVR
-    InitSteamVR();
+    Episode = UCarlaStatics::GetCurrentEpisode(World);    
 
     // Setup the HUD
     InitFlatHUD();
 
     // Spawn and attach the EgoSensor
     InitSensor();
-
-    // Enable VR spectator screen & eye reticle
-    InitSpectator();
 
     // Initialize logitech steering wheel
     InitLogiWheel();
@@ -153,6 +147,12 @@ void AEgoVehicle::BeginDestroy()
 void AEgoVehicle::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+	
+	// Attempt to init VR, if not already connected
+	if (!bIsHMDConnected) {
+		// Get information about the VR headset & initialize SteamVR
+		InitSteamVR();
+	}
 
     // Update the positions based off replay data
     ReplayTick();
@@ -191,19 +191,23 @@ void AEgoVehicle::Tick(float DeltaSeconds)
 
 void AEgoVehicle::InitSteamVR()
 {
-    bIsHMDConnected = UHeadMountedDisplayFunctionLibrary::IsHeadMountedDisplayEnabled();
-    if (bIsHMDConnected)
-    {
-        FString HMD_Name = UHeadMountedDisplayFunctionLibrary::GetHMDDeviceName().ToString();
-        FString HMD_Version = UHeadMountedDisplayFunctionLibrary::GetVersionString();
-        UE_LOG(LogTemp, Log, TEXT("HMD detected: %s, version %s"), *HMD_Name, *HMD_Version);
-        // Now we'll begin with setting up the VR Origin logic
-        UHeadMountedDisplayFunctionLibrary::SetTrackingOrigin(EHMDTrackingOrigin::Eye); // Also have Floor & Stage Level
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("No head mounted device detected!"));
-    }
+	bIsHMDConnected = UHeadMountedDisplayFunctionLibrary::IsHeadMountedDisplayEnabled();
+	
+	if (bIsHMDConnected) {
+		FString HMD_Name = UHeadMountedDisplayFunctionLibrary::GetHMDDeviceName().ToString();
+		FString HMD_Version = UHeadMountedDisplayFunctionLibrary::GetVersionString();
+		UE_LOG(LogTemp, Log, TEXT("HMD detected: %s, version %s"), *HMD_Name, *HMD_Version);
+		// Now we'll begin with setting up the VR Origin logic
+		UHeadMountedDisplayFunctionLibrary::SetTrackingOrigin(EHMDTrackingOrigin::Eye); // Also have Floor & Stage Level
+		
+		// Enable VR spectator screen & eye reticle
+		InitSpectator();
+		
+		// make sure to disable the flat hud when in VR (not supported, only displays on half of one eye screen)
+		bDrawFlatHud = false;
+	} else {
+		UE_LOG(LogTemp, Warning, TEXT("No head mounted device detected!"));
+	}
 }
 
 void AEgoVehicle::ConstructCamera()
@@ -459,24 +463,22 @@ void AEgoVehicle::SetVolume(const float VolumeIn)
 
 void AEgoVehicle::InitSpectator()
 {
-    if (bIsHMDConnected)
-    {
-        if (bEnableSpectatorScreen)
-        {
-            InitReticleTexture(); // generate array of pixel values
-            check(ReticleTexture);
-            UHeadMountedDisplayFunctionLibrary::SetSpectatorScreenMode(ESpectatorScreenMode::TexturePlusEye);
-            UHeadMountedDisplayFunctionLibrary::SetSpectatorScreenTexture(ReticleTexture);
-        }
-        else
-        {
-            UHeadMountedDisplayFunctionLibrary::SetSpectatorScreenMode(ESpectatorScreenMode::Disabled);
-        }
-    }
+	if (bEnableSpectatorScreen)
+	{
+		InitReticleTexture(); // generate array of pixel values
+		check(ReticleTexture);
+		UHeadMountedDisplayFunctionLibrary::SetSpectatorScreenMode(ESpectatorScreenMode::TexturePlusEye);
+		UHeadMountedDisplayFunctionLibrary::SetSpectatorScreenTexture(ReticleTexture);
+	}
+	else
+	{
+		UHeadMountedDisplayFunctionLibrary::SetSpectatorScreenMode(ESpectatorScreenMode::Disabled);
+	}
 }
 
 void AEgoVehicle::InitReticleTexture()
 {
+	ReticleSize = bInitReticleSize;
     if (bIsHMDConnected)
         ReticleSize *= HUDScaleVR;
 
@@ -569,11 +571,6 @@ void AEgoVehicle::InitFlatHUD()
         FlatHUD->SetPlayer(Player);
     else
         UE_LOG(LogTemp, Warning, TEXT("Unable to initialize DReyeVR HUD!"));
-    // make sure to disable the flat hud when in VR (not supported, only displays on half of one eye screen)
-    if (bIsHMDConnected)
-    {
-        bDrawFlatHud = false;
-    }
 }
 
 void AEgoVehicle::DrawFlatHUD(float DeltaSeconds)
